@@ -1,0 +1,291 @@
+# app.py
+import streamlit as st
+import math
+import cmath
+from typing import Optional, Any
+from math import factorial as math_factorial
+from math import comb as math_comb, perm as math_perm
+
+st.set_page_config(page_title="Scientific Calculator", page_icon="🔬", layout="centered")
+st.title("🔬 Scientific Calculator")
+st.markdown("A single-file scientific calculator ready for deployment on share.streamlit.io")
+
+# ---------------------
+# Helpers
+# ---------------------
+def to_number(s: str) -> Optional[float]:
+    try:
+        # allow complex like "1+2j"
+        if "j" in s or "J" in s:
+            return complex(s)
+        return float(s)
+    except:
+        return None
+
+def safe_factorial(x: Any):
+    # math.factorial only accepts integers >=0
+    if isinstance(x, complex):
+        raise ValueError("Factorial not supported for complex numbers")
+    if abs(x - int(x)) > 1e-12:
+        raise ValueError("Factorial requires an integer input")
+    n = int(x)
+    if n < 0:
+        raise ValueError("Factorial requires non-negative integer")
+    return math_factorial(n)
+
+def format_result(r):
+    # make result pretty: show ints without .0
+    if isinstance(r, float) and r.is_integer():
+        return int(r)
+    return r
+
+# ---------------------
+# Sidebar options
+# ---------------------
+st.sidebar.header("Settings")
+angle_unit = st.sidebar.radio("Angle unit", ["Degrees", "Radians"])
+complex_allowed = st.sidebar.checkbox("Allow complex inputs (enter e.g. 1+2j)", value=False)
+precision = st.sidebar.slider("Display precision (decimal places)", 0, 12, 6)
+
+# ---------------------
+# Inputs
+# ---------------------
+st.subheader("Inputs")
+col1, col2 = st.columns(2)
+with col1:
+    a_text = st.text_input("Value a", value="")
+with col2:
+    b_text = st.text_input("Value b (optional)", value="")
+
+a_val = to_number(a_text) if a_text.strip() != "" else None
+b_val = to_number(b_text) if b_text.strip() != "" else None
+
+# Disallow complex unless user enabled
+if (isinstance(a_val, complex) or isinstance(b_val, complex)) and not complex_allowed:
+    st.warning("You entered a complex number but 'Allow complex inputs' is not enabled in the sidebar.")
+    st.stop()
+
+# ---------------------
+# Operation selection
+# ---------------------
+st.subheader("Operations")
+op = st.selectbox("Operation", [
+    "Add (a + b)",
+    "Subtract (a - b)",
+    "Multiply (a × b)",
+    "Divide (a ÷ b)",
+    "Power (a ^ b)",
+    "Nth root (b√a) — b-th root of a",
+    "Square root (√a)",
+    "Factorial (a!)",
+    "Percentage (a % of b)",
+    "Modulo (a % b)",
+    "Floor divide (a // b)",
+    "Log (ln a)",
+    "Log base 10 (log10 a)",
+    "Log base (log_a(b))",
+    "Exp (e^a)",
+    "10^a",
+    "Sine (sin a)",
+    "Cosine (cos a)",
+    "Tangent (tan a)",
+    "Inverse sine (asin a)",
+    "Inverse cosine (acos a)",
+    "Inverse tangent (atan a)",
+    "Hyperbolic sine (sinh a)",
+    "Hyperbolic cosine (cosh a)",
+    "Hyperbolic tangent (tanh a)",
+    "Absolute value (|a|)",
+    "Floor (floor a)",
+    "Ceiling (ceil a)",
+    "Permutation P(a, b) — aPn",
+    "Combination C(a, b) — aCn",
+    "Convert to polar (a) — returns (r, theta)",
+    "Convert from polar (r, theta) — returns complex"
+])
+
+# ---------------------
+# Compute
+# ---------------------
+result = None
+error = None
+
+def ang(x):
+    # convert to radians if needed for trig
+    if isinstance(x, complex):
+        return x
+    return math.radians(x) if angle_unit == "Degrees" else x
+
+try:
+    if op == "Add (a + b)":
+        if a_val is None or b_val is None: raise ValueError("Provide both a and b")
+        result = a_val + b_val
+    elif op == "Subtract (a - b)":
+        if a_val is None or b_val is None: raise ValueError("Provide both a and b")
+        result = a_val - b_val
+    elif op == "Multiply (a × b)":
+        if a_val is None or b_val is None: raise ValueError("Provide both a and b")
+        result = a_val * b_val
+    elif op == "Divide (a ÷ b)":
+        if a_val is None or b_val is None: raise ValueError("Provide both a and b")
+        if b_val == 0: raise ZeroDivisionError("Division by zero")
+        result = a_val / b_val
+    elif op == "Power (a ^ b)":
+        if a_val is None or b_val is None: raise ValueError("Provide both a and b")
+        result = a_val ** b_val
+    elif op == "Nth root (b√a) — b-th root of a":
+        if a_val is None or b_val is None: raise ValueError("Provide both a (value) and b (root)")
+        # handle nth root (b-th root of a)
+        result = a_val ** (1.0 / b_val)
+    elif op == "Square root (√a)":
+        if a_val is None: raise ValueError("Provide a")
+        if (isinstance(a_val, (int, float)) and a_val < 0) and not complex_allowed:
+            raise ValueError("Square root of negative number (enable complex inputs to compute)")
+        result = cmath.sqrt(a_val) if isinstance(a_val, complex) or (isinstance(a_val, (int,float)) and a_val < 0) else math.sqrt(a_val)
+    elif op == "Factorial (a!)":
+        if a_val is None: raise ValueError("Provide a")
+        result = safe_factorial(a_val)
+    elif op == "Percentage (a % of b)":
+        if a_val is None or b_val is None: raise ValueError("Provide a and b")
+        result = (a_val / 100) * b_val
+    elif op == "Modulo (a % b)":
+        if a_val is None or b_val is None: raise ValueError("Provide a and b")
+        result = a_val % b_val
+    elif op == "Floor divide (a // b)":
+        if a_val is None or b_val is None: raise ValueError("Provide a and b")
+        result = a_val // b_val
+    elif op == "Log (ln a)":
+        if a_val is None: raise ValueError("Provide a")
+        if a_val <= 0: raise ValueError("Log undefined for non-positive values")
+        result = math.log(a_val)
+    elif op == "Log base 10 (log10 a)":
+        if a_val is None: raise ValueError("Provide a")
+        if a_val <= 0: raise ValueError("Log undefined for non-positive values")
+        result = math.log10(a_val)
+    elif op == "Log base (log_a(b))":
+        if a_val is None or b_val is None: raise ValueError("Provide base (a) and value (b)")
+        if a_val <= 0 or a_val == 1 or b_val <= 0: raise ValueError("Invalid base/value for log")
+        result = math.log(b_val, a_val)
+    elif op == "Exp (e^a)":
+        if a_val is None: raise ValueError("Provide a")
+        result = math.exp(a_val)
+    elif op == "10^a":
+        if a_val is None: raise ValueError("Provide a")
+        result = 10 ** a_val
+    elif op == "Sine (sin a)":
+        if a_val is None: raise ValueError("Provide a")
+        # allow complex via cmath if complex_allowed
+        if isinstance(a_val, complex):
+            result = cmath.sin(a_val if angle_unit == "Radians" else complex(math.radians(a_val.real), a_val.imag))
+        else:
+            result = math.sin(ang(a_val))
+    elif op == "Cosine (cos a)":
+        if a_val is None: raise ValueError("Provide a")
+        if isinstance(a_val, complex):
+            result = cmath.cos(a_val if angle_unit == "Radians" else complex(math.radians(a_val.real), a_val.imag))
+        else:
+            result = math.cos(ang(a_val))
+    elif op == "Tangent (tan a)":
+        if a_val is None: raise ValueError("Provide a")
+        if isinstance(a_val, complex):
+            result = cmath.tan(a_val if angle_unit == "Radians" else complex(math.radians(a_val.real), a_val.imag))
+        else:
+            result = math.tan(ang(a_val))
+    elif op == "Inverse sine (asin a)":
+        if a_val is None: raise ValueError("Provide a")
+        result = math.asin(a_val) if not isinstance(a_val, complex) else cmath.asin(a_val)
+        if angle_unit == "Degrees" and not isinstance(result, complex):
+            result = math.degrees(result)
+    elif op == "Inverse cosine (acos a)":
+        if a_val is None: raise ValueError("Provide a")
+        result = math.acos(a_val) if not isinstance(a_val, complex) else cmath.acos(a_val)
+        if angle_unit == "Degrees" and not isinstance(result, complex):
+            result = math.degrees(result)
+    elif op == "Inverse tangent (atan a)":
+        if a_val is None: raise ValueError("Provide a")
+        result = math.atan(a_val) if not isinstance(a_val, complex) else cmath.atan(a_val)
+        if angle_unit == "Degrees" and not isinstance(result, complex):
+            result = math.degrees(result)
+    elif op == "Hyperbolic sine (sinh a)":
+        if a_val is None: raise ValueError("Provide a")
+        result = math.sinh(a_val)
+    elif op == "Hyperbolic cosine (cosh a)":
+        if a_val is None: raise ValueError("Provide a")
+        result = math.cosh(a_val)
+    elif op == "Hyperbolic tangent (tanh a)":
+        if a_val is None: raise ValueError("Provide a")
+        result = math.tanh(a_val)
+    elif op == "Absolute value (|a|)":
+        if a_val is None: raise ValueError("Provide a")
+        result = abs(a_val)
+    elif op == "Floor (floor a)":
+        if a_val is None: raise ValueError("Provide a")
+        result = math.floor(a_val)
+    elif op == "Ceiling (ceil a)":
+        if a_val is None: raise ValueError("Provide a")
+        result = math.ceil(a_val)
+    elif op == "Permutation P(a, b) — aPn":
+        if a_val is None or b_val is None: raise ValueError("Provide a (n) and b (r)")
+        # use math.perm (Python 3.8+); if floats convert to int
+        result = math_perm(int(a_val), int(b_val))
+    elif op == "Combination C(a, b) — aCn":
+        if a_val is None or b_val is None: raise ValueError("Provide a (n) and b (r)")
+        result = math_comb(int(a_val), int(b_val))
+    elif op == "Convert to polar (a) — returns (r, theta)":
+        if a_val is None: raise ValueError("Provide a (complex)")
+        z = complex(a_val)
+        r, theta = cmath.polar(z)
+        if angle_unit == "Degrees":
+            theta = math.degrees(theta)
+        result = (r, theta)
+    elif op == "Convert from polar (r, theta) — returns complex":
+        if a_val is None or b_val is None: raise ValueError("Provide r (a) and theta (b)")
+        theta_rad = b_val if angle_unit == "Radians" else math.radians(b_val)
+        result = cmath.rect(a_val, theta_rad)
+    else:
+        error = "Operation not implemented"
+except ZeroDivisionError as e:
+    error = str(e)
+except Exception as e:
+    error = str(e)
+
+# ---------------------
+# Display
+# ---------------------
+st.write("---")
+if error:
+    st.error("Error: " + error)
+else:
+    # format numeric floats with precision
+    if isinstance(result, (int, float)):
+        st.metric("Result", value=round(result, precision))
+        st.write("Raw:", format_result(result))
+    elif isinstance(result, complex):
+        # show real/imag with precision
+        st.metric("Result (complex)", value=f"{round(result.real, precision)} + {round(result.imag, precision)}j")
+        st.write("Raw:", result)
+    elif isinstance(result, tuple) or isinstance(result, list):
+        st.write("Result:", tuple(round(x, precision) if isinstance(x, float) else x for x in result))
+    else:
+        st.write("Result:", result)
+
+# ---------------------
+# History
+# ---------------------
+if "history" not in st.session_state:
+    st.session_state.history = []
+
+if st.button("Save to history"):
+    st.session_state.history.append({
+        "a": a_text,
+        "b": b_text,
+        "op": op,
+        "result": str(result)
+    })
+
+if st.session_state.history:
+    st.write("### History (last 12)")
+    for i, item in enumerate(reversed(st.session_state.history[-12:]), 1):
+        st.write(f"{i}. `{item['a']}` **{item['op']}** `{item['b']}` → **{item['result']}**")
+
+st.caption("Tip: For inverse trig outputs, angle unit respects the sidebar 'Angle unit' setting. For complex numbers enter like `1+2j` (enable complex inputs).")
